@@ -1,0 +1,525 @@
+{
+  "name": "ارسال پست های من به کانال تلگرامم",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -160,
+        -40
+      ],
+      "id": "7cf6e761-b95f-4e4a-a629-4aea3fae310e",
+      "name": "Merge",
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "ادغام پست ها"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f939b43e-6c4d-4f34-bd17-07ebd0eeacfc",
+              "name": "json.sessionId",
+              "value": "={{ $json.Year }}{{ $json['Day of month'] }}{{ $json.Hour }}{{ $json.Minute }}{{ $json.Second }}",
+              "type": "number"
+            },
+            {
+              "id": "3731bb22-72ca-4c38-b651-d5cd0bf0caa1",
+              "name": "token",
+              "value": "apify_api_clh5e6hKnoNjiwxQyyJkOMSKlp2T0X3OkoOZ",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -600,
+        -40
+      ],
+      "id": "d280bc78-52d7-4b26-b477-1b5bd11caad1",
+      "name": "Message",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "executeOnce": false,
+      "onError": "continueRegularOutput",
+      "notes": "پیام بررسی کردن شبکه های اجتماعی"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -820,
+        -40
+      ],
+      "id": "3bf6c347-c4ed-4e7f-9433-53f8ac71448d",
+      "name": "Timer",
+      "notesInFlow": true,
+      "notes": "هر 30 دقیقه"
+    },
+    {
+      "parameters": {
+        "url": "https://rss.app/feeds/v1.1/fz4UKrmamKXRe255.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        60
+      ],
+      "id": "1ffec872-e1ce-4772-8348-83050c56cbf4",
+      "name": "RSS Threads (Instagram)",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "RSS پست های تردز"
+    },
+    {
+      "parameters": {
+        "url": "https://rss.app/feeds/v1.1/vUp5jinO7FhJkGlG.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        -140
+      ],
+      "id": "cc6e86df-4616-432e-bdda-2d0709b81c1a",
+      "name": "X (twitter)  RSS",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "onError": "continueRegularOutput",
+      "notes": "RSS توییت ها"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=CREATE TABLE IF NOT EXISTS sent_posts (\n  id SERIAL PRIMARY KEY,\n  post_id VARCHAR(255) NOT NULL,\n  platform VARCHAR(50) NOT NULL,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  UNIQUE(post_id, platform)\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        160
+      ],
+      "id": "db-setup",
+      "name": "Setup Database",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=WITH new_posts AS (\n  SELECT DISTINCT ON (p.post_id, p.platform)\n    p.*,\n    CASE WHEN sp.id IS NULL THEN true ELSE false END as is_new\n  FROM (\n    SELECT \n      json_array_elements($json::json) as post\n  ) as p\n  LEFT JOIN sent_posts sp ON \n    sp.post_id = p.post->>'id' AND \n    sp.platform = p.post->>'platform'\n)\nSELECT * FROM new_posts WHERE is_new = true;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        60,
+        -40
+      ],
+      "id": "filter-posts",
+      "name": "Filter New Posts",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO sent_posts (post_id, platform)\nSELECT DISTINCT\n  post->>'id' as post_id,\n  post->>'platform' as platform\nFROM json_array_elements($json::json) as post\nON CONFLICT (post_id, platform) DO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [
+        60,
+        160
+      ],
+      "id": "save-posts",
+      "name": "Save Sent Posts",
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=شما به عنوان یک دستیار هوش مصنوعی گزارش‌نویس فعالیت‌های شبکه‌های اجتماعی، باید گزارشی حرفه‌ای از فعالیت‌های محمدرضا عموری در شبکه‌های اجتماعی Threads و X (Twitter) تهیه کنید.\n\nببین مثل یک گزارشگر باش ؛ مثلا بگو محمدرضا در ساعت فلان تو توییتر یا همون ایکس این توییت انتقادی رو زده و بعدش پس از حدود 20 دقیقه در threads این ترد آموزشی رو در حوزه تکنولوژی ارسال کرده\nاینجوری باش.\n\nلطفاً موارد زیر را رعایت کنید:\n\n🔹 هدف گزارش: ثبت و ارائه پست‌های محمدرضا.\n\n🔹 ساختار گزارش:\n\nدر ابتدای گزارش، مثل یک گزارش گر بنویسید برای مثال: بنویسید:\n📄 گزارش فعالیت نیم‌ساعته محمدرضا عموری در شبکه‌های اجتماعی (Threads و X)\n\nسپس برای هر پست جدید موارد زیر را وارد کنید:\n\n🔹 پلتفرمی که پست را در آن انتشار داده \n\n📝 متن کامل پست\n\n🕒 زمان دقیق انتشار پست\n\n🔗 لینک مستقیم به پست\n\n🖼️ در صورت وجود تصویر، بنویسید: «این پست شامل تصویر است.»\n\nبین هر پست از جداکننده‌ی خلاقانه حالا یا با خط یا با ایموجی استفاده کنید.\nولی همشون یک جور باشن و نظم پیام بهم نریزه\n\n🔹 زبان گزارش: فارسی رسمی، دقیق و روان\n\n🔹 ترتیب نمایش: از قدیمی به جدید\n\n✅ پس از ساخت گزارش، آن را به حالت یک گزارشگر آن پیام رو برای ارسال در کانال تلگرام آماده کن.\n\n✅ اصلا در این پیام حرف اضافه نزن چون میخوام مستقیم کل پیام رو کپی کنم و در تلگرام ارسال کنم.\nو اصلا از پیام های اضافی استفاده نکن مثلا تهش بگی این پیام برای تلگرام آماده شد و اینا چون کل پیام رو مستقیم کپی میکنم و ارسال میکنم\n\n✅ لطفاً فایل JSON زیر را پردازش کرده و بر اساس دستور بالا، گزارش را تولید کن:\n\n{{ $json.rawJsonString }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        280,
+        -40
+      ],
+      "id": "62b0047d-5c86-4956-9698-107f773f53bf",
+      "name": "Basic LLM Chain",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-r1:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        360,
+        160
+      ],
+      "id": "17eb63ca-d504-47be-befa-e804b12246e3",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "PaRDOvj08kTe0l9Q",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "532775042",
+        "text": "=📝 محتوای پیش‌نویس برای ارسال به کانال:\n\n{{ $json.text }}\n\nآیا این محتوا را به کانال ارسال کنم؟\n\n✅ برای تأیید و ارسال\n❌ برای لغو",
+        "additionalFields": {
+          "reply_markup": {
+            "inline_keyboard": [
+              [
+                {
+                  "text": "✅ تأیید و ارسال",
+                  "callback_data": "confirm_send"
+                },
+                {
+                  "text": "❌ لغو",
+                  "callback_data": "cancel_send"
+                }
+              ]
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "preview-message",
+      "name": "Preview Message",
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "ارسال پیش‌نویس برای تأیید",
+      "credentials": {
+        "telegramApi": {
+          "id": "IYIglRXJeRsNBJeT",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": "=updates",
+        "options": {
+          "filters": {
+            "messageType": "callback_query",
+            "chatId": "532775042"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        900,
+        160
+      ],
+      "id": "wait-for-confirmation",
+      "name": "Wait for Confirmation",
+      "notesInFlow": true,
+      "notes": "انتظار برای تأیید کاربر",
+      "credentials": {
+        "telegramApi": {
+          "id": "IYIglRXJeRsNBJeT",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.callback_query.data }}",
+              "operation": "equal",
+              "value2": "confirm_send"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -40
+      ],
+      "id": "check-confirmation",
+      "name": "Check Confirmation",
+      "notesInFlow": true,
+      "notes": "بررسی پاسخ کاربر"
+    },
+    {
+      "parameters": {
+        "chatId": "-1002865213973",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1300,
+        -40
+      ],
+      "id": "send-to-channel",
+      "name": "Send to Channel",
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "ارسال به کانال",
+      "credentials": {
+        "telegramApi": {
+          "id": "IYIglRXJeRsNBJeT",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "532775042",
+        "text": "=❌ ارسال به کانال لغو شد.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1300,
+        160
+      ],
+      "id": "send-cancellation",
+      "name": "Send Cancellation",
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "ارسال پیام لغو",
+      "credentials": {
+        "telegramApi": {
+          "id": "IYIglRXJeRsNBJeT",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Filter New Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message": {
+      "main": [
+        [
+          {
+            "node": "X (twitter)  RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Threads (Instagram)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timer": {
+      "main": [
+        [
+          {
+            "node": "Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Threads (Instagram)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "X (twitter)  RSS": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Filter New Posts": {
+      "main": [
+        [
+          {
+            "node": "Save Sent Posts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Preview Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview Message": {
+      "main": [
+        [
+          {
+            "node": "Wait for Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Check Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Send to Channel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Cancellation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e2fc40e4-18f5-48c5-9666-15376faf8a8c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ca709ed3b37912ebe29527e5ad3665f3222f79de9aada4c8da52e5056bcfe304"
+  },
+  "id": "aGcoA66yXiWaof2f",
+  "tags": [
+    {
+      "createdAt": "2025-04-17T11:31:55.488Z",
+      "updatedAt": "2025-04-17T11:31:55.488Z",
+      "id": "3rNrnJzSlSS8Yj8d",
+      "name": "Personal"
+    },
+    {
+      "createdAt": "2025-06-06T12:43:52.679Z",
+      "updatedAt": "2025-06-06T12:43:52.679Z",
+      "id": "Dm7aO3bVirSZoM8y",
+      "name": "Telegram"
+    },
+    {
+      "createdAt": "2025-04-17T11:32:06.402Z",
+      "updatedAt": "2025-04-17T11:32:06.402Z",
+      "id": "qZ8xxzSleqmKqBcZ",
+      "name": "Ai"
+    },
+    {
+      "createdAt": "2025-06-06T12:44:06.743Z",
+      "updatedAt": "2025-06-06T12:44:06.743Z",
+      "id": "sflwb5vhNQNWsthC",
+      "name": "Auto"
+    }
+  ]
+} 
