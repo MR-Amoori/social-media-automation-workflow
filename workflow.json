@@ -211,23 +211,8 @@
     {
       "parameters": {
         "chatId": "532775042",
-        "text": "=📝 محتوای پیش‌نویس برای ارسال به کانال:\n\n{{ $json.text }}\n\nآیا این محتوا را به کانال ارسال کنم؟\n\n✅ برای تأیید و ارسال\n❌ برای لغو",
-        "additionalFields": {
-          "reply_markup": {
-            "inline_keyboard": [
-              [
-                {
-                  "text": "✅ تأیید و ارسال",
-                  "callback_data": "confirm_send"
-                },
-                {
-                  "text": "❌ لغو",
-                  "callback_data": "cancel_send"
-                }
-              ]
-            ]
-          }
-        }
+        "text": "=📝 گزارش فعالیت‌های شبکه‌های اجتماعی:\n\n{{ $json.text }}",
+        "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
@@ -235,11 +220,11 @@
         900,
         -40
       ],
-      "id": "preview-message",
-      "name": "Preview Message",
+      "id": "send-report",
+      "name": "Send Report",
       "alwaysOutputData": true,
       "notesInFlow": true,
-      "notes": "ارسال پیش‌نویس برای تأیید",
+      "notes": "ارسال گزارش به کاربر",
       "credentials": {
         "telegramApi": {
           "id": "IYIglRXJeRsNBJeT",
